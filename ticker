@@ -1,0 +1,73 @@
+#!/bin/bash
+
+if [ ! -d ./watchlist ]; then
+      mkdir -p ./watchlist;
+fi
+
+function get_ticker(){
+    
+    ticker_file="$1.csv" 
+
+    if [ "$2" == "1d" ]; then
+      period="-1 day"
+    elif [ "$2" == "1w" ]; then
+      period="-1 week"
+    elif [ "$2" == "1m" ]; then
+      period="-1 month"
+    elif [ "$2" == "1y" ]; then
+      period="-1 year"
+    else
+      period="-1 week"
+    fi
+    
+    START_DATE=$(date --date="${period}" +%s)
+    END_DATE=$(date +%s)
+    
+    BASE_URL="https://query1.finance.yahoo.com/v7/finance/download/$1?interval=1d&period1=$START_DATE&period2=$END_DATE&events=history"
+    
+    curl -s -o ./watchlist/$1.csv $BASE_URL
+    
+    awk -F',' '
+    BEGIN { printf "%-10s %-8s %-8s %-8s\n", "Date", "Open", "Close", "Volume" }
+    NR==2,NR==count++ {
+    
+        reset = "\033[0m"
+    
+        if ($2<prevo) color1="\033[41m";
+        else if ($2>prevo) color1="\033[42m";
+        prevo=$2
+    
+        if ($5<prevc) color2="\033[41m";
+        else if ($5>prevc) color2="\033[42m"; 
+        prevc=$5
+    
+        printf "%-10s %s %0.2f %s %s %0.2f %s %0.2f\n",$1,color1,$2,reset,color2,$5,reset,$7;
+    
+    }  ' ./watchlist/$1.csv | (sed -u 1q; sort -nrk1)
+}
+
+function usage(){
+    echo "Usage: $0 [ -t TICKER ] [ -p PERIOD ]
+    PERIOD: 1d,1w,1m,1y" 1>&2
+}
+
+while getopts ':t:p:' flag; do
+    case "${flag}" in
+        t) 
+          TICKER=$OPTARG
+          ;;
+        p) 
+          PERIOD=$OPTARG
+          ;;
+        *)
+          usage
+          exit 1
+          ;;
+    esac
+done
+
+if [ $OPTIND -eq 1 ]; then
+    get_ticker $1
+else
+    get_ticker $TICKER $PERIOD
+fi
